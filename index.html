@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tapis volant</title>
+
+    <!-- Icônes existantes -->
+    <link rel="icon" type="image/png" sizes="16x16" href="/carpet-16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/carpet-32.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/carpet-512.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/carpet-512.png">
+
+    <!-- 🟢 AJOUT MANIFEST PWA -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- PWA: couleur de fond -->
+    <meta name="theme-color" content="#000000">
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+        iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="player-cached" style="display: none;">
+        <audio controls="true" id="player-background" preload="none" crossorigin="anonymous">
+        </audio>
+    </div>
+    
+    <iframe id="randomFrame" src="about:blank"></iframe>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- 🟢 AJOUT : ENREGISTREMENT DU SERVICE WORKER PWA -->
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+                navigator.serviceWorker.register("service-worker.js")
+                    .then(() => console.log("✔ Service worker enregistré"))
+                    .catch(err => console.error("❌ Erreur ServiceWorker:", err));
+            });
+        }
+    </script>
+    <!-- FIN AJOUT -->
+
+    <script>
+        // Configuration du flux audio avec timestamp pour éviter le cache
+        function setupAudioStream() {
+            const audio = document.getElementById('player-background');
+            const baseUrl = 'https://azura.tapisvolant.net/listen/tapis_volant/radio.mp3';
+            
+            const streamUrl = baseUrl + '?t=' + Date.now();
+            const source = document.createElement('source');
+            source.src = streamUrl;
+            source.type = 'audio/mpeg';
+            audio.appendChild(source);
+            
+            console.log('🔊 Flux chargé avec timestamp frais');
+        }
+
+        let pages = [
+            'totem/index.html',
+            'cubes/index.html',
+            'smart/index.html',
+            'fondu/index.html',
+            'sombre/index.html',
+            'cover/index.html',
+            'volant/index.html',
+        ];
+        let seenPages = [];
+        let lastPage = null;
+        let isInitialLoad = true;
+
+        window.onload = function() {
+            setupAudioStream();
+            loadRandomPage();
+            setupAudioErrorRecovery();
+        };
+        
+        function loadRandomPage() {
+            if (seenPages.length === pages.length) {
+                seenPages = [];
+            }
+        
+            let availablePages = pages.filter(page => !seenPages.includes(page));
+            
+            if (isInitialLoad) {
+                availablePages = availablePages.filter(page => 
+                    page !== 'cover/index.html' && page !== 'volant/index.html'
+                );
+                isInitialLoad = false;
+            } else {
+                if (lastPage) {
+                    availablePages = availablePages.filter(page => page !== lastPage);
+                }
+            }
+            
+            if (availablePages.length === 0) {
+                availablePages = pages.filter(page => page !== lastPage);
+                seenPages = [];
+            }
+            
+            let randomIndex = Math.floor(Math.random() * availablePages.length);
+            let newPage = availablePages[randomIndex];
+            let iframe = document.getElementById('randomFrame');
+            iframe.src = newPage;
+            seenPages.push(newPage);
+            lastPage = newPage;
+        }
+        
+        function restartRandomPage() {
+            loadRandomPage();
+        }
+
+        function setupAudioErrorRecovery() {
+            const audio = document.getElementById('player-background');
+            
+            if (!audio) return;
+
+            let errorCount = 0;
+            let lastError = 0;
+
+            audio.addEventListener('error', function() {
+                const now = Date.now();
+                
+                if (now - lastError < 10000) {
+                    errorCount++;
+                } else {
+                    errorCount = 1;
+                }
+                
+                lastError = now;
+
+                if (errorCount > 3) {
+                    console.log('Trop d\'erreurs, arrêt des tentatives');
+                    return;
+                }
+
+                console.log('Erreur stream, tentative de reconnexion...');
+                setTimeout(function() {
+                    audio.load();
+                    audio.play();
+                }, 2000);
+            });
+        }
+
+        $(document).ready(function () {
+            var audio = document.getElementById("player-background");
+            if (audio) {
+                $("#player-cached").hide();
+            }
+        });
+    </script>
+</body>
+</html>
